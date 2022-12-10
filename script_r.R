@@ -10,20 +10,16 @@ setDT(u_data)
 
 #First, generate the instrument;
 u_data <- u_data[gq == 1|gq == 2]
-#table(u_data$gq)
-#u_data <- u_data[gq %in% c(1,2) ]
+
 
 u_data <- u_data[ !(year == 1900 | year == 1940)]
-#table(u_data$year)
+
 u_data <- u_data[, yob := year-age]
-#table(u_data$yrimmig, useNA = "no")
+
 is.na(u_data$yrimmig)
 u_data <- mutate(u_data, yrimmig = ifelse (!yrimmig == 0, yrimmig+1000,0))
 
-#u_data <- u_data[yrimmig != 0, yrimmig := yriming + 1000]
-#u_data <- u_data[yrimmig == 0, yrimmig := 0]
 
-#murders<- mutate(murders, low_crime_area<-ifelse(murders$rate <= 1, 1, 0))
 
 u_data <- mutate(u_data, yrimmig = ifelse (yrimmig == 0, NA ,yrimmig))
 u_data$immig==1 & is.na(u_data$yrimmig)
@@ -31,7 +27,7 @@ u_data <- mutate(u_data, immig = ifelse (bpld>=15000 & bpld<90000, 1 , 0))
 u_data<- u_data[!(immig==1 & is.na(u_data$yrimmig))]
 u_data<- u_data[!(immig==1 & yrimmig<yob)]
 
-#(u_data$immig==1 & u_data$yrimmig<u_data$yob)
+
 
 u_data$ageimmig <- u_data$yrimmig - u_data$yob
 
@@ -172,6 +168,9 @@ u_data$momethnic<- ifelse (u_data$mbpld>=52100 & u_data$mbpld<=52150, 20, u_data
 u_data$momethnic<- ifelse (u_data$mbpld>=41400 & u_data$mbpld<=41410, 21, u_data$mbpld)
 
 # Used stata for the rest of the replace 
+library(haven)
+library(data.table)
+library(dplyr)
 replaced_data<- read_dta("C:/Urban/Data/113848-V1/df_replaced.dta")
 
 
@@ -200,19 +199,20 @@ replaced_data$male_baby <- replaced_data$male * replaced_data$baby_imm
 
 replaced_data$male_old <- replaced_data$male * replaced_data$old_imm
 
-replaced_data$male_secondgen <- replaced_data$male * replaced_data$secondgen
+replaced_data$male_sec <- replaced_data$male * replaced_data$secondgen
 
 replaced_data$female_baby <- replaced_data$female * replaced_data$baby_imm
 
 replaced_data$female_old <- replaced_data$female * replaced_data$old_imm
 
-replaced_data$female_secondgen <- replaced_data$female * replaced_data$secondgen
+replaced_data$female_sec <- replaced_data$female * replaced_data$secondgen
 
 #Avoid double counting by restricting the flow/stock variables to be measured only once;
 
 
 
 # Forloop
+#Group immigrants into cohorts of immigration (or births for individuals who immigrated as children)
 replaced_data$period_imm<-5*(floor(replaced_data$yrimmig/5))
 replaced_data$period_imm<- ifelse(replaced_data$young_imm==0 & replaced_data$old_imm==0, 5*(floor(yob/5))+15, replaced_data$period_imm)
 
@@ -227,42 +227,41 @@ replaced_data %>%
  filter(replaced_data$year==1910 & (replaced_data$period_imm<1900 | replaced_data$period_imm>=1910)) %>% 
   select(young_imm, baby_imm, old_imm ,secondgen, native)
 
-nar1 <-  function(x) ifelse(replaced_data$year==1910 & (replaced_data$period_imm<1900 | replaced_data$period_imm>=1910) ,NA,x)
-
-
-#mutate(young_imm= ifelse(year==1910 ,NA,young_imm) )
-
-#collapse
+nar1 <-  function(x) ifelse(replaced_data$year==1920 & (replaced_data$period_imm<1910 | replaced_data$period_imm>=1920) ,NA,x)
+replaced_data <- replaced_data %>% 
+  as_tibble() %>% 
+  mutate(across(c(young_imm, baby_imm, old_imm ,secondgen, native),nar1))
 replaced_data %>% 
-  group_by(period_imm, ethnic) %>% 
-  summarise(young_imm = sum(young_imm * perwt, na.rm = TRUE), 
-            baby_imm = sum(baby_imm * perwt, na.rm = TRUE),
-             = sum(baby_imm * perwt, na.rm = TRUE)
+  filter(replaced_data$year==1920 & (replaced_data$period_imm<1910 | replaced_data$period_imm>=1920)) %>% 
+  select(young_imm, baby_imm, old_imm ,secondgen, native)
 
-            
+nar2<-  function(x) ifelse(replaced_data$year==1930 & (replaced_data$period_imm<1920 | replaced_data$period_imm>=1930) ,NA,x)
+replaced_data <- replaced_data %>% 
+  as_tibble() %>% 
+  mutate(across(c(young_imm, baby_imm, old_imm ,secondgen, native),nar2))
 replaced_data %>% 
-  group_by(period_imm, ethnic) %>% 
-  summarise(across(c(starts_with("female"), list(sum=sum), .names="{.col}.{.fn}")))
-                     
-replaced_data %>% select(starts_with("female")) %>% 
-  names()
-                     = sum(young_imm * perwt, na.rm = TRUE), 
-            baby_imm = sum(baby_imm * perwt, na.rm = TRUE),
-            = sum(baby_imm * perwt, na.rm = TRUE)
-            
+  filter(replaced_data$year==1920 & (replaced_data$period_imm<1910 | replaced_data$period_imm>=1920)) %>% 
+  select(young_imm, baby_imm, old_imm ,secondgen, native)
 
-replaced_data %>% mutate(x=1) %>% 
-  complete(ethnic, period_imm) %>% 
-  mutate(fillin=ifelse(is.na(x), 1, 0))
-#merge
-census_data<- read_dta("C:/Urban/Data/113848-V1/immigration_shares_census2.dta")
-names(census_data)
-left_join(u_data,census_data)
+year==1910 & period_imm>=1910
 
-#big for loop
+nar3<-  function(x) ifelse(replaced_data$year==1910 & (replaced_data$period_imm>=1910) ,NA,x)
+replaced_data <- replaced_data %>% 
+  as_tibble() %>% 
+  mutate(across(c(male, female ,female_young, male_young ,female_baby ,
+                  male_baby ,female_old ,male_old, male_sec ,female_sec),nar3))
 
-v_loop <- 
 
-newdata <- mtcars[order(mpg),]
+nar4<-  function(x) ifelse(replaced_data$year==1920 & (replaced_data$period_imm>=1920) ,NA,x)
+replaced_data <- replaced_data %>% 
+  as_tibble() %>% 
+  mutate(across(c(male, female ,female_young, male_young ,female_baby ,
+                  male_baby ,female_old ,male_old, male_sec ,female_sec),nar4))
 
-# 
+nar5<-  function(x) ifelse(replaced_data$year==1930 & (replaced_data$period_imm>=1930) ,NA,x)
+replaced_data <- replaced_data %>% 
+  as_tibble() %>% 
+  mutate(across(c(male, female ,female_young, male_young ,female_baby ,
+                  male_baby ,female_old ,male_old, male_sec ,female_sec),nar5))
+
+ 
